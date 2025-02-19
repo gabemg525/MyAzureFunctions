@@ -25,6 +25,13 @@ namespace Visitor.Function
 
             // Authenticate using DefaultAzureCredential
             TokenCredential credential = new DefaultAzureCredential();
+            string tableEndpoint = "https://cosmos-db-table-pbekhm5evwdtc.table.cosmos.azure.com:443/";
+
+            // Initialize TableServiceClient
+            TableServiceClient serviceClient = new TableServiceClient(new Uri(tableEndpoint), credential);
+
+            // Get a reference to your table
+            TableClient client = serviceClient.GetTableClient("ProductsTable");
 
             return new OkObjectResult("Welcome to Azure Functions!");
         }
