@@ -30,7 +30,7 @@ namespace MyCosmosDbFunction
             TokenCredential credential = new DefaultAzureCredential();
 
             // Replace with your Azure Cosmos DB Table endpoint
-            string tableEndpoint = "https://<YOUR_COSMOSDB_ACCOUNT>.table.cosmos.azure.com:443/";
+            string tableEndpoint = "https://challenge-cosmosdb.table.cosmos.azure.com:443/";
 
             // Initialize the TableServiceClient
             TableServiceClient serviceClient = new(
