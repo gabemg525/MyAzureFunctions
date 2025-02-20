@@ -2,9 +2,7 @@ using System.Collections.Generic;
 using System.Net;
 using System.Threading.Tasks;
 using Azure;
-using Azure.Core;
 using Azure.Data.Tables;
-using Azure.Identity;
 using Microsoft.Azure.Functions.Worker;
 using Microsoft.Azure.Functions.Worker.Http;
 using Microsoft.Extensions.Logging;
@@ -24,27 +22,21 @@ namespace MyCosmosDbFunction
         public async Task<HttpResponseData> Run(
             [HttpTrigger(AuthorizationLevel.Anonymous, "get", "post")] HttpRequestData req)
         {
-            _logger.LogInformation("Processing Azure Cosmos DB Table API request...");
+            _logger.LogInformation("Processing Azure Cosmos DB Table API request using connection string...");
 
-            // Authenticate using DefaultAzureCredential (managed identity or other chained credentials)
-            TokenCredential credential = new DefaultAzureCredential();
+            // Get the connection string from environment variables
+            string connectionString = System.Environment.GetEnvironmentVariable("COSMOSDB_CONNECTION_STRING")!;
 
-            // Replace with your Azure Cosmos DB Table endpoint
-            string tableEndpoint = "https://challenge-cosmosdb.table.cosmos.azure.com:443/";
+            // Initialize the TableServiceClient using the connection string
+            TableServiceClient serviceClient = new TableServiceClient(connectionString);
 
-            // Initialize the TableServiceClient
-            TableServiceClient serviceClient = new(
-                new Uri(tableEndpoint),
-                credential
-            );
-
-            // Get a reference to your table (use whatever table name you want here)
+            // Get a reference to your table (will be created if it doesn't exist)
             TableClient client = serviceClient.GetTableClient("ProductsTable");
 
-            // 1. Create the table if it doesn't exist
+            // Create the table if it doesn't exist
             await client.CreateIfNotExistsAsync();
 
-            // 2. Create or update an entity
+            // Create or update an entity
             Product entity = new()
             {
                 RowKey = "123456",
@@ -57,14 +49,14 @@ namespace MyCosmosDbFunction
 
             await client.UpsertEntityAsync(entity, TableUpdateMode.Replace);
 
-            // 3. Retrieve the entity
+            // Retrieve the entity
             Response<Product> getResponse = await client.GetEntityAsync<Product>(
                 rowKey: "123456",
                 partitionKey: "electronics"
             );
             Product retrievedEntity = getResponse.Value;
 
-            // 4. Query all items in the category
+            // Query all items in the category
             string category = "electronics";
             AsyncPageable<Product> queryResults = client.QueryAsync<Product>(
                 p => p.PartitionKey == category
@@ -75,7 +67,7 @@ namespace MyCosmosDbFunction
                 entities.Add(prod);
             }
 
-            // 5. Create an HTTP response
+            // Create an HTTP response
             var response = req.CreateResponse(HttpStatusCode.OK);
             response.Headers.Add("Content-Type", "application/json");
             await response.WriteAsJsonAsync(new
