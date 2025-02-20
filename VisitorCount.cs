@@ -6,7 +6,7 @@ using Azure.Data.Tables;
 using Microsoft.Azure.Functions.Worker;
 using Microsoft.Azure.Functions.Worker.Http;
 using Microsoft.Extensions.Logging;
-using System.Text.Json.Serialization;
+using System.Text.Json;
 
 namespace MyCosmosDbFunction
 {
@@ -46,7 +46,7 @@ namespace MyCosmosDbFunction
                     PartitionKey = "electronics",
                     Name = "Smartphone",
                     Quantity = 50,
-                    Price = 699.99m,
+                    Price = 669.99m,
                     Clearance = false
                 };
 
@@ -70,15 +70,21 @@ namespace MyCosmosDbFunction
                     entities.Add(prod);
                 }
 
-                // Create an HTTP response
-                var response = req.CreateResponse(HttpStatusCode.OK);
-                response.Headers.Add("Content-Type", "application/json");
-                await response.WriteAsJsonAsync(new
+                // Build the result object
+                var result = new
                 {
                     Message = "Azure Cosmos DB Table operations completed.",
                     RetrievedProduct = retrievedEntity,
                     TotalProductsInCategory = entities.Count
-                });
+                };
+
+                // Serialize the result to JSON
+                string jsonResponse = JsonSerializer.Serialize(result);
+
+                // Create an HTTP response with JSON content
+                var response = req.CreateResponse(HttpStatusCode.OK);
+                response.Headers.Add("Content-Type", "application/json");
+                await response.WriteStringAsync(jsonResponse);
 
                 return response;
             }
@@ -100,11 +106,9 @@ namespace MyCosmosDbFunction
         public required int Quantity { get; set; }
         public required decimal Price { get; set; }
         public required bool Clearance { get; set; }
-
-        // Mark the ETag property to be ignored during JSON serialization.
-        [JsonIgnore]
+        // ETag is required by ITableEntity but can be ignored during JSON serialization.
+        [System.Text.Json.Serialization.JsonIgnore]
         public ETag ETag { get; set; } = ETag.All;
-
         public DateTimeOffset? Timestamp { get; set; }
     }
 }
