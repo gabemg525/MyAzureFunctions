@@ -1,105 +1,39 @@
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Azure.Functions.Worker;
-using Microsoft.Azure.Functions.Worker.Http;
 using Microsoft.Extensions.Logging;
 using Azure;
 using Azure.Core;
 using Azure.Data.Tables;
 using Azure.Identity;
-using System.Collections.Generic;
-using System.Net;
-using System.Threading.Tasks;
 
 namespace Visitor.Function
 {
-    public class CosmosTableFunction
+    public class VisitorCount
     {
-        private readonly ILogger<CosmosTableFunction> _logger;
+        private readonly ILogger<VisitorCount> _logger;
 
-        public CosmosTableFunction(ILogger<CosmosTableFunction> logger)
+        public VisitorCount(ILogger<VisitorCount> logger)
         {
             _logger = logger;
         }
 
-        [Function("CosmosTableFunction")]
-        public async Task<HttpResponseData> Run(
-            [HttpTrigger(AuthorizationLevel.Anonymous, "get", "post")] HttpRequestData req)
+        [Function("VisitorCount")]
+        public IActionResult Run([HttpTrigger(AuthorizationLevel.Function, "get", "post")] HttpRequest req)
         {
-            _logger.LogInformation("Processing Azure Cosmos DB Table API request...");
+            _logger.LogInformation("C# HTTP trigger function processed a request.");
 
-            // Authenticate using DefaultAzureCredential (managed identity or other chained credentials)
+            // Authenticate using DefaultAzureCredential
             TokenCredential credential = new DefaultAzureCredential();
-
-            // Replace with your Azure Cosmos DB Table endpoint
             string tableEndpoint = "https://cosmos-db-table-pbekhm5evwdtc.table.cosmos.azure.com:443/";
 
-            // Initialize the TableServiceClient
-            TableServiceClient serviceClient = new(
-                new Uri(tableEndpoint),
-                credential
-            );
+            // Initialize TableServiceClient
+            TableServiceClient serviceClient = new TableServiceClient(new Uri(tableEndpoint), credential);
 
-            // Get a reference to your table (use whatever table name you want here)
+            // Get a reference to your table
             TableClient client = serviceClient.GetTableClient("ProductsTable");
 
-            // 1. Create the table if it doesn't exist
-            await client.CreateIfNotExistsAsync();
-
-            // 2. Create or update an entity
-            Product entity = new()
-            {
-                RowKey = "123456",
-                PartitionKey = "electronics",
-                Name = "Smartphone",
-                Quantity = 50,
-                Price = 699.99m,
-                Clearance = false
-            };
-
-            await client.UpsertEntityAsync(entity, TableUpdateMode.Replace);
-
-            // 3. Retrieve the entity
-            Response<Product> getResponse = await client.GetEntityAsync<Product>(
-                rowKey: "123456",
-                partitionKey: "electronics"
-            );
-            Product retrievedEntity = getResponse.Value;
-
-            // 4. Query all items in the category
-            string category = "electronics";
-            AsyncPageable<Product> queryResults = client.QueryAsync<Product>(
-                p => p.PartitionKey == category
-            );
-            var entities = new List<Product>();
-            await foreach (Product prod in queryResults)
-            {
-                entities.Add(prod);
-            }
-
-            // 5. Create an HTTP response
-            var response = req.CreateResponse(HttpStatusCode.OK);
-            response.Headers.Add("Content-Type", "application/json");
-            await response.WriteAsJsonAsync(new
-            {
-                Message = "Azure Cosmos DB Table operations completed.",
-                RetrievedProduct = retrievedEntity,
-                TotalProductsInCategory = entities.Count
-            });
-
-            return response;
+            return new OkObjectResult("Welcome to Azure Functions!");
         }
-    }
-
-    public record Product : ITableEntity
-    {
-        public required string RowKey { get; set; }
-        public required string PartitionKey { get; set; }
-        public required string Name { get; set; }
-        public required int Quantity { get; set; }
-        public required decimal Price { get; set; }
-        public required bool Clearance { get; set; }
-        public ETag ETag { get; set; } = ETag.All;
-        public DateTimeOffset? Timestamp { get; set; }
     }
 }
