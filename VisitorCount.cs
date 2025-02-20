@@ -32,7 +32,7 @@ namespace Visitor.Function
             TokenCredential credential = new DefaultAzureCredential();
 
             // Replace with your Azure Cosmos DB Table endpoint
-            string tableEndpoint = "https://<YOUR_COSMOSDB_ACCOUNT>.table.cosmos.azure.com:443/";
+            string tableEndpoint = "https://cosmos-db-table-pbekhm5evwdtc.table.cosmos.azure.com:443/";
 
             // Initialize the TableServiceClient
             TableServiceClient serviceClient = new(
