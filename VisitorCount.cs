@@ -79,6 +79,8 @@ namespace MyCosmosDbFunction
                 // Create an HTTP response with JSON content.
                 var response = req.CreateResponse(HttpStatusCode.OK);
                 response.Headers.Add("Content-Type", "application/json");
+                response.Headers.Add("Access-Control-Allow-Origin", "https://strgazgabemg525.z19.web.core.windows.net");
+
                 await response.WriteStringAsync(jsonResponse);
 
                 return response;
