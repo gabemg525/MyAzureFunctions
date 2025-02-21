@@ -10,78 +10,73 @@ using System.Text.Json;
 
 namespace MyCosmosDbFunction
 {
-    public class CosmosTableFunction
+    public class VisitorCountFunction
     {
-        private readonly ILogger<CosmosTableFunction> _logger;
+        private readonly ILogger<VisitorCountFunction> _logger;
 
-        public CosmosTableFunction(ILogger<CosmosTableFunction> logger)
+        public VisitorCountFunction(ILogger<VisitorCountFunction> logger)
         {
             _logger = logger;
         }
 
-        [Function("CosmosTableFunction")]
+        [Function("VisitorCountFunction")]
         public async Task<HttpResponseData> Run(
             [HttpTrigger(AuthorizationLevel.Anonymous, "get", "post")] HttpRequestData req)
         {
             try
             {
-                _logger.LogInformation("Processing Azure Cosmos DB Table API request using connection string...");
+                _logger.LogInformation("Processing visitor count update using connection string...");
 
-                // Get the connection string from environment variables
+                // Retrieve the Cosmos DB connection string from environment variables.
                 string connectionString = System.Environment.GetEnvironmentVariable("COSMOSDB_CONNECTION_STRING")!;
 
-                // Initialize the TableServiceClient using the connection string
+                // Initialize the TableServiceClient using the connection string.
                 TableServiceClient serviceClient = new TableServiceClient(connectionString);
 
-                // Get a reference to your table (will be created if it doesn't exist)
-                TableClient client = serviceClient.GetTableClient("ProductsTable");
+                // Get a reference to the "Visitor" table.
+                TableClient tableClient = serviceClient.GetTableClient("Visitor");
 
-                // Create the table if it doesn't exist
-                await client.CreateIfNotExistsAsync();
+                // Create the table if it doesn't already exist.
+                await tableClient.CreateIfNotExistsAsync();
 
-                // Create or update an entity
-                Product entity = new()
+                // Define the partition and row keys for our visitor count record.
+                string partitionKey = "visitor";
+                string rowKey = "visitorcount";
+
+                VisitorEntity visitorEntity;
+
+                // Try to retrieve the visitor count entity.
+                try
                 {
-                    RowKey = "123456",
-                    PartitionKey = "electronics",
-                    Name = "Smartphone",
-                    Quantity = 50,
-                    Price = 669.99m,
-                    Clearance = false
-                };
-
-                await client.UpsertEntityAsync(entity, TableUpdateMode.Replace);
-
-                // Retrieve the entity
-                Response<Product> getResponse = await client.GetEntityAsync<Product>(
-                    rowKey: "123456",
-                    partitionKey: "electronics"
-                );
-                Product retrievedEntity = getResponse.Value;
-
-                // Query all items in the category
-                string category = "electronics";
-                AsyncPageable<Product> queryResults = client.QueryAsync<Product>(
-                    p => p.PartitionKey == category
-                );
-                var entities = new List<Product>();
-                await foreach (Product prod in queryResults)
+                    Response<VisitorEntity> getResponse = await tableClient.GetEntityAsync<VisitorEntity>(partitionKey, rowKey);
+                    visitorEntity = getResponse.Value;
+                    visitorEntity.Count++;  // Increment the count.
+                }
+                catch (RequestFailedException ex) when (ex.Status == (int)HttpStatusCode.NotFound)
                 {
-                    entities.Add(prod);
+                    // If the entity is not found, create a new one with Count = 1.
+                    visitorEntity = new VisitorEntity
+                    {
+                        PartitionKey = partitionKey,
+                        RowKey = rowKey,
+                        Count = 1
+                    };
                 }
 
-                // Build the result object
+                // Upsert the entity (insert or update).
+                await tableClient.UpsertEntityAsync(visitorEntity, TableUpdateMode.Replace);
+
+                // Build the result object to return.
                 var result = new
                 {
-                    Message = "Azure Cosmos DB Table operations completed.",
-                    RetrievedProduct = retrievedEntity,
-                    TotalProductsInCategory = entities.Count
+                    Message = "Visitor count updated successfully.",
+                    CurrentVisitorCount = visitorEntity.Count
                 };
 
-                // Serialize the result to JSON
+                // Serialize the result object to JSON.
                 string jsonResponse = JsonSerializer.Serialize(result);
 
-                // Create an HTTP response with JSON content
+                // Create an HTTP response with JSON content.
                 var response = req.CreateResponse(HttpStatusCode.OK);
                 response.Headers.Add("Content-Type", "application/json");
                 await response.WriteStringAsync(jsonResponse);
@@ -90,7 +85,7 @@ namespace MyCosmosDbFunction
             }
             catch (System.Exception ex)
             {
-                _logger.LogError(ex, "An error occurred processing the request.");
+                _logger.LogError(ex, "An error occurred processing the visitor count update.");
                 var errorResponse = req.CreateResponse(HttpStatusCode.InternalServerError);
                 await errorResponse.WriteStringAsync("An internal error occurred. Please check logs for details.");
                 return errorResponse;
@@ -98,15 +93,12 @@ namespace MyCosmosDbFunction
         }
     }
 
-    public record Product : ITableEntity
+    public record VisitorEntity : ITableEntity
     {
-        public required string RowKey { get; set; }
-        public required string PartitionKey { get; set; }
-        public required string Name { get; set; }
-        public required int Quantity { get; set; }
-        public required decimal Price { get; set; }
-        public required bool Clearance { get; set; }
-        // ETag is required by ITableEntity but can be ignored during JSON serialization.
+        public string PartitionKey { get; set; }
+        public string RowKey { get; set; }
+        public int Count { get; set; }
+        // ETag is required by ITableEntity. We ignore it during JSON serialization.
         [System.Text.Json.Serialization.JsonIgnore]
         public ETag ETag { get; set; } = ETag.All;
         public DateTimeOffset? Timestamp { get; set; }
